@@ -16,11 +16,12 @@ description: |
 
 ## アーキテクチャ
 
-4フェーズで動作する:
+5フェーズで動作する:
 
 1. **DeBank 自動スクショ** — Playwright で EVM ウォレットのスクリーンショットを撮影
-2. **手動スクショ配置** — ユーザーが Jupiter / 取引所のスクリーンショットを同フォルダに配置
-3. **画像解析** — Claude の画像認識で全スクリーンショットからトークンデータを抽出
+1.5. **取引所 API 取得** — bitbank / GMO Coin の残高を API で自動取得（キー設定時のみ）
+2. **手動スクショ配置** — ユーザーが Jupiter 等のスクリーンショットを同フォルダに配置
+3. **画像解析** — Claude の画像認識でスクリーンショットからトークンデータを抽出 + API データを統合
 4. **カテゴリ分類・CSV出力** — トークン別集計 + カテゴリ別エクスポージャーの2種 CSV を生成
 
 ## Prerequisites
@@ -64,15 +65,40 @@ uv run python .claude/skills/portfolio-scan/scripts/browser_scanner.py
 
 - **プロキシ制限** (`net::ERR_EMPTY_RESPONSE`): VM環境のプロキシがブロックしている場合、ローカルで実行する
 
+## Phase 1.5: 取引所 API 取得
+
+bitbank / GMO Coin の API キーが `.env` に設定されている場合、API 経由で残高を自動取得する。
+
+### 実行
+
+```bash
+uv run python .claude/skills/portfolio-scan/scripts/exchange_fetcher.py
+```
+
+- API キーが設定されている取引所のみ取得（未設定の取引所はスキップ）
+- `output/YYYYMMDD/exchange_data.md` に raw_data.md と同じマークダウンテーブル形式で保存
+- Phase 3 で `exchange_data.md` の内容を `raw_data.md` にそのままコピーする
+
+### 必要な環境変数
+
+```
+BITBANK_API_KEY=...
+BITBANK_API_SECRET=...
+GMOCOIN_API_KEY=...
+GMOCOIN_API_SECRET=...
+```
+
 ## Phase 2: 手動スクショ配置
 
-Phase 1 完了後、ユーザーに以下を依頼する:
+Phase 1 / 1.5 完了後、ユーザーに以下を依頼する。
+**Phase 1.5 で API 取得できた取引所はスクリーンショット不要。**
 
-> Phase 1 の DeBank スクリーンショット取得が完了しました。
+> DeBank スクリーンショット取得が完了しました。
+> {API で取得済みの取引所があれば「bitbank / GMO Coin は API で取得済みです。」と記載}
 > 以下のスクリーンショットを `output/YYYYMMDD/screenshots/` フォルダに配置してください:
 >
 > - **Jupiter Portfolio** (`jup.ag/portfolio/{solana_address}`) のスクリーンショット
-> - **取引所の残高画面**（Bybit, Binance 等）のスクリーンショット（あれば）
+> - **取引所の残高画面**（API 未設定の取引所があれば）のスクリーンショット
 >
 > ファイル名や形式は問いません。配置が完了したら教えてください。
 
@@ -106,6 +132,9 @@ Phase 1 完了後、ユーザーに以下を依頼する:
 
 `output/YYYYMMDD/screenshots/` 内の全画像ファイルを **Read ツール** で読み込み、
 読み取った情報を **`output/YYYYMMDD/raw_data.md`** にマークダウン形式で記録する。
+
+**API データの統合**: `output/YYYYMMDD/exchange_data.md` が存在する場合、
+その内容を `raw_data.md` の末尾にそのままコピーする（API で取得済みの取引所のスクリーンショットは読み取り不要）。
 
 ### 基本方針
 
