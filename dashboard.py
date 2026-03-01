@@ -19,7 +19,7 @@ import streamlit as st
 
 OUTPUT_DIR = Path("output")
 
-TRADFI_CATEGORIES = {"Japanese Securities", "iDeCo"}
+TRADFI_CATEGORIES = {"Japanese Securities", "iDeCo", "Gold"}
 NON_RISK_CATEGORIES = {"JPY Cash", "USD Stables"}
 MERGE_CATEGORIES = {"iDeCo": "Japanese Securities"}
 

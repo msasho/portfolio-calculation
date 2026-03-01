@@ -9,5 +9,7 @@
   "JPY Cash": ["JPY"],
   "Japanese Securities": ["楽天証券"],
   "iDeCo": ["iDeCo"],
+  "Gold": ["GOLD"],
+  "DeFi Wallets": ["DeFi"],
   "Others": ["S", "ARB", "AAVE", "PENDLE", "KNTQ", "XRP", "POL", "MON"]
 }
