@@ -1,64 +1,48 @@
 # Portfolio Calculation
 
 複数チェーン・複数ウォレットの暗号資産ポートフォリオを集計するツール。
-Playwrightでポートフォリオサイトのスクリーンショットを取得し、画像認識で残高・ポジションを抽出する。
+Playwright で DeBank のスクリーンショットを自動取得し、Jupiter / 取引所のスクショは手動配置。
+Claude の画像認識でトークンデータを抽出し、CSV レポートを生成する。
 
 ## 対応チェーン
 
-- **EVM**: Ethereum, Arbitrum, Optimism, Base, Polygon, BNB Chain, Avalanche (DeBank経由)
-- **Solana** (Solscan / Step Finance経由)
-- **Hyperliquid** Spot / Perps
+- **EVM**: Ethereum, Arbitrum, Optimism, Base, Avalanche, Sonic, HyperEVM (DeBank経由)
+- **Solana** (Jupiter スクショを手動配置)
+- **Hyperliquid** Spot / Perps (DeBank経由)
 
 ## セットアップ
 
 ```bash
 # 依存パッケージのインストール
-pip install -r requirements.txt
+uv sync
 
 # ブラウザのインストール
-playwright install chromium
+uv run python -m playwright install chromium
 
-# 環境変数の設定
+# ウォレット設定 (.env.example を参考に)
 cp .env.example .env
-# .env を編集してウォレットアドレスを設定
+# .env の EVM_WALLETS, SOLANA_WALLETS にアドレスを設定
 ```
 
-## 使い方
+## 使い方 (4フェーズ)
 
-### 1. スクリーンショット取得
+### Phase 1: DeBank 自動スクショ
 
 ```bash
-python browser_scanner.py [targets...]
+uv run python .claude/skills/portfolio-scan/scripts/browser_scanner.py
 ```
 
-DeBank / Solscan / Step Finance / Hyperliquid のページをPlaywrightでスクリーンショット取得する。ターゲットを指定しない場合は全サイトをスキャン。
+`output/YYYYMMDD/screenshots/` に DeBank のスクリーンショットが保存される。
 
-```bash
-# 例: DeBankとHyperliquidのみ
-python browser_scanner.py debank hyperliquid
-```
+### Phase 2: 手動スクショ配置
 
-スクリーンショットは `output/screenshots/` に保存される。
+Jupiter Portfolio (`jup.ag/portfolio/{address}`) や取引所の残高画面のスクリーンショットを
+同じ `screenshots/` フォルダに PNG で配置する。
 
-### 2. レポート生成
+### Phase 3 & 4: 画像解析・レポート生成
 
-```bash
-python output/generate_report.py
-```
+Claude Code のスキル（`ポートフォリオ集計して`）を実行すると、
+全スクリーンショットから画像認識でデータを抽出し、以下の CSV を生成する:
 
-スクリーンショットから抽出したデータを元に、CSV + XLSXレポートを生成する。
-
-**出力ファイル** (`output/`):
-- `portfolio_detail.csv` — 全トークン明細
-- `portfolio_summary.csv` — トークン別集計
-- `portfolio_report.xlsx` — ウォレット別・チェーン別・Top10のレポート
-
-## 設定
-
-`.env` でウォレットアドレスを設定:
-
-```
-EVM_WALLETS=0xABC...,0xDEF...      # カンマ区切りで複数指定
-SOLANA_WALLETS=SoLaNa1...,SoLaNa2...
-DUST_THRESHOLD_USD=1.0              # この金額以下のトークンを除外
-```
+- `portfolio_by_token.csv` — トークン別集計
+- `portfolio_by_exposure.csv` — カテゴリ別エクスポージャー (USD Stables, ETH, BTC, SOL, Others)

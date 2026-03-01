@@ -1,0 +1,12 @@
+{
+  "USD Stables": ["USDC", "USDbC", "BUSD", "DAI", "FEUSD", "feUSD", "USDH"],
+  "BTC": ["BTC", "BTCB", "cbBTC", "WBTC"],
+  "ETH": ["ETH", "WETH"],
+  "SOL": ["SOL"],
+  "AVAX": ["AVAX"],
+  "HYPE": ["HYPE"],
+  "JPY Cash": ["JPY"],
+  "Japanese Securities": ["楽天証券"],
+  "iDeCo": ["iDeCo"],
+  "Others": ["S", "ARB", "AAVE", "PENDLE", "BNB", "KNTQ", "XRP", "POL", "MON"]
+}
