@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.idea/
+.claude/
+output/*.csv
+output/*.xlsx
+output/screenshots/
+uv.lock
