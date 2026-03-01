@@ -1,0 +1,156 @@
+---
+name: portfolio-checker
+description: |
+  Crypto portfolio checker that scans wallet addresses across EVM chains, Solana, and Hyperliquid via browser-based explorers.
+  Uses Claude in Chrome (browser automation) to access DeBank for EVM multi-chain portfolio + DeFi positions,
+  Step Finance for Solana DeFi positions, and Hyperliquid API for perp/spot balances.
+  Aggregates all assets by chain and token, then outputs a CSV summary.
+  MANDATORY TRIGGERS: portfolio, wallet, asset check, balance check, crypto balance, token balance, 資産計算, ポートフォリオ, ウォレット残高, 残高チェック, DeFi
+---
+
+# Portfolio Checker
+
+ブラウザ経由でウォレットの全資産（DeFiポジション含む）をスキャンし、CSVにまとめる。
+
+## Prerequisites
+
+- Claude in Chrome 拡張が接続済みであること
+- `wallets.json` が workspace フォルダに存在すること（`assets/wallets_template.json` からコピー）
+
+## Workflow
+
+### Step 1: ウォレット設定の読み込み
+
+workspace フォルダの `wallets.json` を読む:
+
+```json
+{
+  "evm": ["0xABC...", "0xDEF..."],
+  "solana": ["ABC123...", "DEF456..."]
+}
+```
+
+ファイルがなければ `assets/wallets_template.json` をコピーし、ユーザーにアドレスの入力を依頼。
+
+### Step 2: EVM ウォレットのスキャン（DeBank）
+
+各 EVM アドレスについて:
+
+1. `tabs_context_mcp` でブラウザタブを取得、必要なら新規タブ作成
+2. `https://debank.com/profile/{address}` に遷移
+3. 5秒待機（ページ読み込み）
+4. ゆっくりスクロール（2秒間隔で3-4回）し、遅延読み込みトークンを全て表示させる
+5. `get_page_text` でページ全文を抽出
+6. トークン名・数量・チェーン・USD価格をパース
+7. テキスト解析だけでは不十分な場合、`read_page` でアクセシビリティツリーを使用
+
+**対象チェーン:** Ethereum, Arbitrum, Optimism, Base, Avalanche, Polygon, BNB Chain, Sonic, HyperEVM
+
+**DeBankで取得できるデータ:**
+- **ウォレット残高**: 全チェーンのトークン残高が1ページで一覧表示
+- **DeFiポジション**: LP、ステーキング、レンディング、ファーミング等のプロトコル別ポジション
+  - DeBank は「Protocol」セクションに DeFi ポジションをまとめて表示
+  - 各プロトコル名・預入資産・USD評価額が取得可能
+- トークン一覧とDeFiポジション、両方をパースすること
+
+**Rate limiting:** ウォレットアドレス間で5-10秒の間隔を空ける。
+
+### Step 3: Solana ウォレットのスキャン（Step Finance + Solscan）
+
+各 Solana アドレスについて:
+
+#### 3a: DeFiポジション取得（Step Finance）
+
+1. `https://app.step.finance/en/dashboard?watching={address}` に遷移
+2. 5秒待機（ページ読み込み）
+3. ダッシュボードに表示されるDeFiポジションを取得:
+   - Staked SOL（Marinade, Jito, etc.）
+   - LP ポジション（Raydium, Orca, Meteora, etc.）
+   - レンディング（Solend, Kamino, etc.）
+   - その他 DeFi プロトコル
+4. `get_page_text` でページ全文を抽出し、各プロトコルのポジションと USD 評価額をパース
+
+**Step Finance のポイント:**
+- `?watching={address}` パラメータで任意アドレスのダッシュボードを表示可能
+- Total Portfolio Value が画面上部に表示される
+- プロトコル別にポジションがグループ化されている
+
+#### 3b: トークン残高の補完（Solscan）
+
+1. `https://solscan.io/account/{address}` に遷移
+2. 5秒待機
+3. 「Portfolio」タブをクリック
+4. `get_page_text` でトークンリストを抽出
+5. パース: SOL 残高（ヘッダー）、各 SPL トークン（シンボル・数量・USD価格）
+
+**Solscan のポイント:**
+- SOL 残高がページ上部に表示
+- SPL トークンがリスト表示（シンボル、名前、数量、価格、USD評価額）
+- ステーキングSOLは「Stake Accounts」タブに表示される場合あり
+
+Step Finance と Solscan のデータを統合し、重複を排除すること。
+
+### Step 4: Hyperliquid のスキャン
+
+各 EVM アドレスについて、Hyperliquid API を直接呼び出す（ブラウザ不要）:
+
+#### 4a: スポット残高
+```
+POST https://api.hyperliquid.xyz/info
+{"type": "spotClearinghouseState", "user": "0x..."}
+```
+レスポンスの `balances` からトークンごとの残高を取得。
+
+#### 4b: パープ口座残高
+```
+POST https://api.hyperliquid.xyz/info
+{"type": "clearinghouseState", "user": "0x..."}
+```
+レスポンスの `marginSummary.accountValue` から口座価値（証拠金 + 未実現損益）を取得。
+
+#### 4c: HyperEVM ネイティブ残高
+```
+POST https://rpc.hyperliquid.xyz
+{"jsonrpc":"2.0","id":1,"method":"eth_getBalance","params":["0x...","latest"]}
+```
+HYPE トークンのオンチェーン残高を取得。
+
+### Step 5: 集約・保存
+
+workspace フォルダに2つの CSV を生成:
+
+**`portfolio_detail.csv`** — ウォレット別の詳細:
+```
+wallet_address,chain,category,protocol,token_symbol,token_name,amount,usd_value,timestamp
+0xABC...,Ethereum,wallet,,ETH,Ethereum,1.5,4500.00,2025-01-01T12:00:00
+0xABC...,Arbitrum,defi,Aave V3,USDC,USD Coin (supplied),5000,5000.00,2025-01-01T12:00:00
+```
+
+**`portfolio_summary.csv`** — トークン別の集計:
+```
+token_symbol,token_name,total_amount,total_usd_value
+ETH,Ethereum,3.5,10500.00
+USDC,USD Coin,5000,5000.00
+```
+
+### Step 6: レポート
+
+ユーザーに提示:
+- ポートフォリオ総額（USD）
+- ウォレットごとの小計
+- Top 10 保有トークン（USD評価額順）
+- チェーン別の資産配分
+- DeFi プロトコル別の資産内訳
+- CSV ファイルへのリンク
+
+## Error Handling
+
+- **CAPTCHA/ブロック**: ユーザーに通知、手動確認を提案
+- **無効なアドレス**: スキップし、出力に記録
+- **価格データなし**: 数量を記録し、usd_value は `N/A`
+- **ページタイムアウト**: 10秒後に1回リトライ、失敗時はスキップ
+- **Rate limit**: リクエスト間隔を15秒に延長
+
+## Fallback Explorers
+
+DeBank が利用不可の場合は `references/explorer_urls.md` のチェーン別エクスプローラーURLを使用。

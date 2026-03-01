@@ -1,0 +1,26 @@
+# Explorer URL Reference
+
+## DeBank (EVM Multi-Chain)
+
+Base URL: `https://debank.com/profile/{address}`
+
+All target chains visible in single page view:
+- Ethereum, Arbitrum, Optimism, Base, Avalanche, Sonic, HyperEVM
+
+## Solscan (Solana)
+
+Base URL: `https://solscan.io/account/{address}`
+
+Tabs: Transactions, Transfers, DeFi Activities, Portfolio, Stake Accounts
+
+## Fallback Explorers
+
+| Chain | Explorer | URL Pattern |
+|-------|----------|-------------|
+| Ethereum | Etherscan | `https://etherscan.io/address/{address}` |
+| Arbitrum | Arbiscan | `https://arbiscan.io/address/{address}` |
+| Optimism | OP Etherscan | `https://optimistic.etherscan.io/address/{address}` |
+| Base | BaseScan | `https://basescan.org/address/{address}` |
+| Avalanche | Snowtrace | `https://snowtrace.io/address/{address}` |
+| Sonic | Sonic Explorer | `https://sonicscan.org/address/{address}` |
+| Solana | Solana Explorer | `https://explorer.solana.com/address/{address}` |

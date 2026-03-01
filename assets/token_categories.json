@@ -5,8 +5,9 @@
   "SOL": ["SOL"],
   "AVAX": ["AVAX"],
   "HYPE": ["HYPE"],
+  "BNB": ["BNB"],
   "JPY Cash": ["JPY"],
   "Japanese Securities": ["楽天証券"],
   "iDeCo": ["iDeCo"],
-  "Others": ["S", "ARB", "AAVE", "PENDLE", "BNB", "KNTQ", "XRP", "POL", "MON"]
+  "Others": ["S", "ARB", "AAVE", "PENDLE", "KNTQ", "XRP", "POL", "MON"]
 }
