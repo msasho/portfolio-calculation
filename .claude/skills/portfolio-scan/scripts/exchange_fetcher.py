@@ -1,5 +1,5 @@
 """
-Fetch exchange balances via REST API (bitbank / GMO Coin).
+Fetch exchange balances via REST API (bitbank / GMO Coin / Backpack).
 
 Outputs a markdown file in the same format as raw_data.md sections,
 so it can be directly incorporated during Phase 3.
@@ -8,12 +8,14 @@ Usage:
     python exchange_fetcher.py
 
 Environment variables (set in .env):
-    BITBANK_API_KEY / BITBANK_API_SECRET   — bitbank
-    GMOCOIN_API_KEY / GMOCOIN_API_SECRET   — GMO Coin
+    BITBANK_API_KEY / BITBANK_API_SECRET     — bitbank
+    GMOCOIN_API_KEY / GMOCOIN_API_SECRET     — GMO Coin
+    BACKPACK_API_KEY / BACKPACK_API_SECRET   — Backpack (via bpx-py)
 
 If keys are not set, that exchange is silently skipped.
 """
 
+import base64
 import hashlib
 import hmac
 import json
@@ -232,6 +234,83 @@ def fetch_gmocoin() -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# Backpack
+# ---------------------------------------------------------------------------
+
+
+def fetch_backpack() -> str | None:
+    """Fetch Backpack balances + lending positions. Returns markdown or None."""
+    api_key = os.environ.get("BACKPACK_API_KEY", "").strip()
+    api_secret = os.environ.get("BACKPACK_API_SECRET", "").strip()
+    if not api_key or not api_secret:
+        return None
+
+    from bpx.account import Account
+
+    client = Account(api_key, api_secret)
+
+    # Exchange balances
+    balances = client.get_balances()
+    rows: list[str] = []
+    for symbol, info in balances.items():
+        available = float(info.get("available", 0))
+        locked = float(info.get("locked", 0))
+        total = available + locked
+        if total <= 0:
+            continue
+        note = "API 取得"
+        if locked > 0:
+            note += f" (locked: {locked})"
+        rows.append(f"| {symbol} | {symbol} | {total} | - | - | USD | {note} |")
+
+    # Lending positions
+    lend_rows: list[str] = []
+    try:
+        positions = client.get_borrow_lend_positions()
+        for pos in positions:
+            qty = float(pos.get("netQuantity", 0))
+            if qty <= 0:
+                continue
+            symbol = pos.get("symbol", "???")
+            mark = float(pos.get("markPrice", 0))
+            usd_val = qty * mark
+            interest = pos.get("cumulativeInterest", "0")
+            lend_rows.append(
+                f"| Backpack Lending | {symbol} Lend ({qty} {symbol}) | ${usd_val:,.2f} | USD | interest: {interest} |"
+            )
+            # Also add to asset rows so it's counted in holdings
+            rows.append(
+                f"| {symbol} | {symbol} | {qty} | ${mark:,.2f} | ${usd_val:,.2f} | USD | Lending |"
+            )
+    except Exception:
+        pass
+
+    if not rows and not lend_rows:
+        return None
+
+    parts = [f"""## backpack_api
+
+- **ソース**: Backpack（API）
+- **取得日**: {DATE_LABEL}
+
+### 保有資産
+
+| 銘柄/シンボル | 名称 | 数量 | 単価 | 評価額 | 通貨 | 備考 |
+|---|---|---|---|---|---|---|
+""" + "\n".join(rows)]
+
+    if lend_rows:
+        parts.append("""
+### DeFi / その他ポジション
+
+| プロトコル/サービス | ポジション内容 | 評価額 | 通貨 | 備考 |
+|---|---|---|---|---|
+""" + "\n".join(lend_rows))
+
+    return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -242,7 +321,7 @@ def main() -> None:
 
     print("=== Exchange API Fetcher ===\n")
 
-    for name, fetch_fn in [("bitbank", fetch_bitbank), ("GMO Coin", fetch_gmocoin)]:
+    for name, fetch_fn in [("bitbank", fetch_bitbank), ("GMO Coin", fetch_gmocoin), ("Backpack", fetch_backpack)]:
         try:
             result = fetch_fn()
             if result is None:

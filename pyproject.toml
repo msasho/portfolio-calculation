@@ -7,4 +7,5 @@ dependencies = [
     "openpyxl>=3.1.0",
     "streamlit>=1.40.0",
     "plotly>=5.18.0",
+    "bpx-py>=2.0.0",
 ]
