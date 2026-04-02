@@ -262,16 +262,13 @@ def main() -> None:
         st.info("Only one snapshot available. Add more snapshots to see trends.")
     else:
         # Total portfolio value over time
-        history_rows: list[dict] = []
         cat_rows: list[dict] = []
         for d in dates:
             try:
-                a_df = load_asset_csv(d)
                 e_df = load_exposure_csv(d)
             except Exception:
                 continue
             label = f"{d[:4]}-{d[4:6]}-{d[6:]}"
-            history_rows.append({"date": label, "total_jpy": a_df["jpy_value"].sum()})
             merged = e_df.copy()
             merged["category"] = merged["category"].replace(MERGE_CATEGORIES)
             merged = merged.groupby("category", as_index=False)["jpy_value"].sum()
@@ -285,22 +282,52 @@ def main() -> None:
                     }
                 )
 
-        hist_df = pd.DataFrame(history_rows)
         cat_df = pd.DataFrame(cat_rows)
 
         col_l, col_r = st.columns(2)
 
         with col_l:
-            fig_line = px.line(
-                hist_df,
-                x="date",
-                y="total_jpy",
-                markers=True,
-                title="Total Portfolio Value",
-                labels={"total_jpy": "JPY", "date": ""},
-            )
-            fig_line.update_layout(margin=dict(t=40, b=0))
-            st.plotly_chart(fig_line, use_container_width=True)
+            # Month-over-month change by category
+            delta_rows: list[dict] = []
+            sorted_dates = sorted(cat_df["date"].unique())
+            for i in range(1, len(sorted_dates)):
+                prev_date = sorted_dates[i - 1]
+                curr_date = sorted_dates[i]
+                prev = cat_df[cat_df["date"] == prev_date].set_index("category")["jpy_value"]
+                curr = cat_df[cat_df["date"] == curr_date].set_index("category")["jpy_value"]
+                all_cats = set(prev.index) | set(curr.index)
+                for cat in all_cats:
+                    prev_val = prev.get(cat, 0)
+                    curr_val = curr.get(cat, 0)
+                    delta = curr_val - prev_val
+                    if abs(delta) < 1000:  # skip noise < ¥1,000
+                        continue
+                    delta_rows.append(
+                        {"date": curr_date, "category": cat, "delta": delta}
+                    )
+
+            if delta_rows:
+                delta_df = pd.DataFrame(delta_rows)
+                delta_df["hover"] = delta_df["delta"].apply(
+                    lambda v: f"+¥{v:,.0f}" if v >= 0 else f"-¥{abs(v):,.0f}"
+                )
+                fig_delta = px.bar(
+                    delta_df,
+                    x="date",
+                    y="delta",
+                    color="category",
+                    barmode="relative",
+                    title="Month-over-Month Change by Category",
+                    labels={"delta": "Change (JPY)", "date": ""},
+                    custom_data=["category", "hover"],
+                )
+                fig_delta.update_traces(
+                    hovertemplate="%{customdata[0]}: %{customdata[1]}<extra></extra>"
+                )
+                fig_delta.update_layout(margin=dict(t=40, b=0))
+                st.plotly_chart(fig_delta, use_container_width=True)
+            else:
+                st.info("Need at least 2 snapshots to show changes.")
 
         with col_r:
             fig_area = px.area(
